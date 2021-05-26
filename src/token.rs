@@ -23,9 +23,9 @@ pub enum TokenType {
     LessEqual,
 
     // Literals.
-    Identifier(String),
-    String(String),
-    Number(String),
+    Identifier,
+    String { literal: String },
+    Number { literal: f64 },
 
     // Keywords.
     And,
@@ -51,12 +51,17 @@ pub enum TokenType {
 #[derive(Debug)]
 pub struct Token {
     r#type: TokenType,
+    pub lexeme: String,
     line: usize,
 }
 
 impl Token {
-    pub fn new(r#type: TokenType, line: usize) -> Self {
-        Self { r#type, line }
+    pub fn new(r#type: TokenType, lexeme: &str, line: usize) -> Self {
+        Self {
+            r#type,
+            lexeme: lexeme.to_string(),
+            line,
+        }
     }
 
     pub fn get_keyword(id: &str) -> Option<TokenType> {
@@ -84,7 +89,7 @@ impl Token {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 
     // #[test]
     // fn to_string() {

@@ -41,31 +41,31 @@ impl Lexer {
     ) -> Result<(), LexError> {
         while let Some(c) = source.next() {
             match c {
-                '(' => self.add_token(TokenType::LeftParen),
-                ')' => self.add_token(TokenType::RightParen),
-                '{' => self.add_token(TokenType::LeftBrace),
-                '}' => self.add_token(TokenType::RightBrace),
-                ',' => self.add_token(TokenType::Comma),
-                '.' => self.add_token(TokenType::Dot),
-                '-' => self.add_token(TokenType::Minus),
-                '+' => self.add_token(TokenType::Plus),
-                ';' => self.add_token(TokenType::Semicolon),
-                '*' => self.add_token(TokenType::Star),
+                '(' => self.add_token(TokenType::LeftParen, "("),
+                ')' => self.add_token(TokenType::RightParen, ")"),
+                '{' => self.add_token(TokenType::LeftBrace, "{"),
+                '}' => self.add_token(TokenType::RightBrace, "}"),
+                ',' => self.add_token(TokenType::Comma, ","),
+                '.' => self.add_token(TokenType::Dot, "."),
+                '-' => self.add_token(TokenType::Minus, "-"),
+                '+' => self.add_token(TokenType::Plus, "+"),
+                ';' => self.add_token(TokenType::Semicolon, ";"),
+                '*' => self.add_token(TokenType::Star, "*"),
                 '!' => match source.peek() {
-                    Some('=') => self.add_token(TokenType::BangEqual),
-                    _ => self.add_token(TokenType::Bang),
+                    Some('=') => self.add_token(TokenType::BangEqual, "!="),
+                    _ => self.add_token(TokenType::Bang, "!"),
                 },
                 '=' => match source.peek() {
-                    Some('=') => self.add_token(TokenType::EqualEqual),
-                    _ => self.add_token(TokenType::Equal),
+                    Some('=') => self.add_token(TokenType::EqualEqual, "=="),
+                    _ => self.add_token(TokenType::Equal, "="),
                 },
                 '<' => match source.peek() {
-                    Some('=') => self.add_token(TokenType::LessEqual),
-                    _ => self.add_token(TokenType::Less),
+                    Some('=') => self.add_token(TokenType::LessEqual, "<="),
+                    _ => self.add_token(TokenType::Less, "<"),
                 },
                 '>' => match source.peek() {
-                    Some('=') => self.add_token(TokenType::GreaterEqual),
-                    _ => self.add_token(TokenType::Greater),
+                    Some('=') => self.add_token(TokenType::GreaterEqual, ">="),
+                    _ => self.add_token(TokenType::Greater, ">"),
                 },
                 '/' => match source.peek() {
                     Some('/') => loop {
@@ -74,7 +74,7 @@ impl Lexer {
                             _ => {}
                         }
                     },
-                    _ => self.add_token(TokenType::Slash),
+                    _ => self.add_token(TokenType::Slash, "/"),
                 },
                 '"' => {
                     let mut s = String::new();
@@ -90,7 +90,7 @@ impl Lexer {
                             }
                         }
                     }
-                    self.add_token(TokenType::String(s));
+                    self.add_token(TokenType::String { literal: s }, "\"");
                 }
                 '0'..='9' => {
                     let mut n = String::from(c);
@@ -113,11 +113,16 @@ impl Lexer {
                             }
                         }
                     }
-                    self.add_token(TokenType::Number(n));
+                    self.add_token(
+                        TokenType::Number {
+                            literal: n.parse::<f64>().unwrap(),
+                        },
+                        &n,
+                    );
                 }
                 'o' => {
                     if let Some('r') = source.next() {
-                        self.add_token(TokenType::Or);
+                        self.add_token(TokenType::Or, "or");
                     }
                 }
                 'a'..='z' | 'A'..='Z' | '_' => {
@@ -133,8 +138,8 @@ impl Lexer {
                         }
                     }
                     match Token::get_keyword(&ident) {
-                        Some(r#type) => self.add_token(r#type),
-                        None => self.add_token(TokenType::Identifier(ident)),
+                        Some(r#type) => self.add_token(r#type, &ident),
+                        None => self.add_token(TokenType::Identifier, &ident),
                     }
                 }
                 '\n' => self.line += 1,
@@ -148,11 +153,11 @@ impl Lexer {
             }
         }
 
-        self.add_token(TokenType::EOF);
+        self.add_token(TokenType::EOF, "");
         Ok(())
     }
 
-    fn add_token(&mut self, r#type: TokenType) {
-        self.tokens.push(Token::new(r#type, self.line))
+    fn add_token(&mut self, r#type: TokenType, lexeme: &str) {
+        self.tokens.push(Token::new(r#type, lexeme, self.line))
     }
 }

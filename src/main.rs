@@ -1,4 +1,5 @@
 mod lexer;
+mod syntex;
 mod token;
 
 use lexer::{LexError, Lexer};
