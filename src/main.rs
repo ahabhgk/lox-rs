@@ -1,12 +1,16 @@
 mod lexer;
+mod parser;
 mod syntex;
 mod token;
 
-use lexer::{LexError, Lexer};
+use lexer::Lexer;
+use parser::Parser;
+use syntex::AstPrinter;
+
 use std::{
     error,
     fs::read_to_string,
-    io::{self, BufRead, Write},
+    io::{self, BufRead},
 };
 
 fn main() -> Result<(), Box<dyn error::Error>> {
@@ -17,9 +21,9 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     Ok(())
 }
 
-fn run_file(path: &str) -> Result<(), Box<dyn error::Error>> {
+fn run_file(path: &str) -> Result<(), io::Error> {
     let source = read_to_string(path)?;
-    run(&source)?;
+    run(&source);
     Ok(())
 }
 
@@ -27,28 +31,18 @@ const PROMPT: &'static str = "> ";
 
 fn run_prompt() -> Result<(), io::Error> {
     let stdin = io::stdin();
-    let stdout = io::stdout();
-    let mut reader = stdin.lock();
-    let mut writer = stdout.lock();
-
-    loop {
-        writer.write(PROMPT.as_bytes())?;
-        writer.flush()?;
-
-        let mut line = String::new();
-        reader.read_line(&mut line)?;
-
-        if let Err(e) = run(&line) {
-            eprintln!("{}", e);
-        }
-    }
-}
-
-fn run(source: &str) -> Result<(), LexError> {
-    let mut lexer = Lexer::new();
-    lexer.scan_tokens(source.chars().peekable())?;
-    for token in lexer.tokens {
-        println!("{:?} ", token);
+    for line in stdin.lock().lines() {
+        run(&line?);
+        print!("{}", PROMPT);
     }
     Ok(())
+}
+
+fn run(source: &str) {
+    let mut lexer = Lexer::new(source);
+    let tokens = lexer.scan().unwrap();
+    let mut parser = Parser::new(tokens);
+    if let Ok(expr) = parser.parse() {
+        println!("{}", AstPrinter.print(expr));
+    }
 }

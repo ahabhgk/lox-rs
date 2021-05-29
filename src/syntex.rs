@@ -1,5 +1,7 @@
 use crate::token::Token;
 
+use std::fmt;
+
 pub trait Visitor<R> {
     fn visit_binary_expr(
         &self,
@@ -22,7 +24,7 @@ pub enum Expr {
         expression: Box<Expr>,
     },
     Literal {
-        value: String,
+        value: LiteralValue,
     },
     Unary {
         operator: Token,
@@ -47,6 +49,24 @@ impl Expr {
             Expr::Unary { operator, right } => {
                 visitor.visit_unary_expr(operator, right)
             }
+        }
+    }
+}
+
+pub enum LiteralValue {
+    Boolean(bool),
+    Nil,
+    Number(f64),
+    String(String),
+}
+
+impl fmt::Display for LiteralValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LiteralValue::Boolean(b) => write!(f, "{}", b),
+            LiteralValue::Nil => write!(f, "nil"),
+            LiteralValue::Number(n) => write!(f, "{}", n),
+            LiteralValue::String(s) => write!(f, "{}", s),
         }
     }
 }
@@ -105,13 +125,13 @@ mod tests {
             left: Box::new(Expr::Unary {
                 operator: Token::new(TokenType::Minus, "-", 1),
                 right: Box::new(Expr::Literal {
-                    value: "123".to_string(),
+                    value: LiteralValue::Number(123.0),
                 }),
             }),
             operator: Token::new(TokenType::Star, "*", 1),
             right: Box::new(Expr::Grouping {
                 expression: Box::new(Expr::Literal {
-                    value: "45.67".to_string(),
+                    value: LiteralValue::Number(45.67),
                 }),
             }),
         };

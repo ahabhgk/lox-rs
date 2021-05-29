@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     LeftParen,
     RightParen,
@@ -48,11 +48,11 @@ pub enum TokenType {
     EOF,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
-    r#type: TokenType,
+    pub r#type: TokenType,
     pub lexeme: String,
-    line: usize,
+    pub line: usize,
 }
 
 impl Token {
@@ -85,15 +85,4 @@ impl Token {
             _ => None,
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    // use super::*;
-
-    // #[test]
-    // fn to_string() {
-    //     let token = Token::new(TokenType::And, "+".to_string(), 1);
-    //     println!("{:?}", token);
-    // }
 }
