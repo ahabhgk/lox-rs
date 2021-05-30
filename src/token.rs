@@ -48,7 +48,7 @@ pub enum TokenType {
     EOF,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub r#type: TokenType,
     pub lexeme: String,

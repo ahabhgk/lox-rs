@@ -1,5 +1,5 @@
 use crate::{
-    syntex::{Expr, LiteralValue},
+    ast::{Expr, LiteralValue},
     token::{Token, TokenType},
 };
 
@@ -245,10 +245,11 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{lexer::Lexer, syntex::AstPrinter};
+    use crate::lexer::Lexer;
+    use crate::visitor::ast_printer::AstPrinter;
 
     #[test]
-    fn test_parser() {
+    fn test_expression() {
         let mut lexer = Lexer::new("-123 * 45.67");
         let tokens = lexer.scan().expect("Could not scan sample code.");
 
