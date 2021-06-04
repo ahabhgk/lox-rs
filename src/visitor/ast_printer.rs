@@ -1,7 +1,7 @@
+use super::expr;
 use crate::{
     ast::{Expr, LiteralValue},
     token::Token,
-    visitor::Visitor,
 };
 
 pub struct AstPrinter;
@@ -24,7 +24,7 @@ impl AstPrinter {
     }
 }
 
-impl Visitor<String> for AstPrinter {
+impl expr::Visitor<String> for AstPrinter {
     fn visit_binary_expr(
         &self,
         left: &Expr,

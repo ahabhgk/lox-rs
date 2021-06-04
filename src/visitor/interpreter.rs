@@ -1,10 +1,9 @@
+use super::{expr, stmt};
 use crate::{
-    ast::{Expr, LiteralValue},
+    ast::{Expr, LiteralValue, Stmt},
     token::{Token, TokenType},
-    visitor::Visitor,
 };
-
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, result};
 
 #[derive(Debug)]
 pub enum RuntimeError {
@@ -25,9 +24,11 @@ impl fmt::Display for RuntimeError {
 
 impl Error for RuntimeError {}
 
+pub type Result<T> = result::Result<T, RuntimeError>;
+
 pub struct Interpreter;
 
-pub enum Object {
+enum Object {
     Boolean(bool),
     Nil,
     Number(f64),
@@ -48,21 +49,31 @@ impl Object {
     }
 }
 
-impl Interpreter {
-    pub fn interpret(&self, expression: &Expr) -> Result<String, RuntimeError> {
-        self.evaluate(expression).map(|value| self.stringify(value))
-    }
-
-    fn stringify(&self, object: Object) -> String {
-        match object {
+impl fmt::Display for Object {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
             Object::Nil => "nil".to_string(),
             Object::Number(n) => n.to_string(),
             Object::Boolean(b) => b.to_string(),
-            Object::String(s) => s,
+            Object::String(s) => s.to_string(),
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl Interpreter {
+    pub fn interpret(&mut self, statements: &Vec<Stmt>) -> Result<()> {
+        for stmt in statements {
+            self.execute(stmt)?;
         }
+        Ok(())
     }
 
-    fn evaluate(&self, expr: &Expr) -> Result<Object, RuntimeError> {
+    fn execute(&mut self, stmt: &Stmt) -> Result<()> {
+        stmt.accept(self)
+    }
+
+    fn evaluate(&self, expr: &Expr) -> Result<Object> {
         expr.accept(self)
     }
 
@@ -82,11 +93,8 @@ impl Interpreter {
     }
 }
 
-impl Visitor<Result<Object, RuntimeError>> for Interpreter {
-    fn visit_literal_expr(
-        &self,
-        value: &LiteralValue,
-    ) -> Result<Object, RuntimeError> {
+impl expr::Visitor<Result<Object>> for Interpreter {
+    fn visit_literal_expr(&self, value: &LiteralValue) -> Result<Object> {
         match value {
             LiteralValue::Boolean(b) => Ok(Object::Boolean(*b)),
             LiteralValue::Nil => Ok(Object::Nil),
@@ -100,7 +108,7 @@ impl Visitor<Result<Object, RuntimeError>> for Interpreter {
         left: &Expr,
         operator: &crate::token::Token,
         right: &Expr,
-    ) -> Result<Object, RuntimeError> {
+    ) -> Result<Object> {
         let left = self.evaluate(left)?;
         let right = self.evaluate(right)?;
 
@@ -166,10 +174,7 @@ impl Visitor<Result<Object, RuntimeError>> for Interpreter {
         }
     }
 
-    fn visit_grouping_expr(
-        &self,
-        expression: &Expr,
-    ) -> Result<Object, RuntimeError> {
+    fn visit_grouping_expr(&self, expression: &Expr) -> Result<Object> {
         self.evaluate(expression)
     }
 
@@ -177,7 +182,7 @@ impl Visitor<Result<Object, RuntimeError>> for Interpreter {
         &self,
         operator: &Token,
         right: &Expr,
-    ) -> Result<Object, RuntimeError> {
+    ) -> Result<Object> {
         let right = self.evaluate(right)?;
         match operator.r#type {
             TokenType::Minus => match right {
@@ -187,5 +192,30 @@ impl Visitor<Result<Object, RuntimeError>> for Interpreter {
             TokenType::Bang => Ok(Object::Boolean(!self.is_truthy(&right))),
             _ => unreachable!(),
         }
+    }
+}
+
+impl stmt::Visitor<Result<()>> for Interpreter {
+    fn visit_block_stmt(&mut self, statements: &Vec<Stmt>) -> Result<()> {
+        todo!()
+    }
+
+    fn visit_expression_stmt(&mut self, expression: &Expr) -> Result<()> {
+        self.evaluate(expression)?;
+        Ok(())
+    }
+
+    fn visit_print_stmt(&mut self, expression: &Expr) -> Result<()> {
+        let value = self.evaluate(expression)?;
+        println!("{}", value);
+        Ok(())
+    }
+
+    fn visit_var_stmt(
+        &mut self,
+        name: &Token,
+        initializer: &Option<Expr>,
+    ) -> Result<()> {
+        todo!()
     }
 }

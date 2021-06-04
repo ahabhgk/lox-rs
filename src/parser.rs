@@ -1,8 +1,7 @@
 use crate::{
-    ast::{Expr, LiteralValue},
+    ast::{Expr, LiteralValue, Stmt},
     token::{Token, TokenType},
 };
-
 use std::{error::Error, fmt};
 
 macro_rules! matche_types {
@@ -27,14 +26,12 @@ impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnexpectedToken { message, token } => match token.r#type {
-                TokenType::EOF => write!(
-                    f,
-                    "[Parse Error: {} at end] {}",
-                    token.line, message
-                ),
+                TokenType::EOF => {
+                    write!(f, "line {} at end: {}", token.line, message)
+                }
                 _ => write!(
                     f,
-                    "[Parse Error: {} at {}] {}",
+                    "line {} at {}: {}",
                     token.line, token.lexeme, message
                 ),
             },
@@ -54,8 +51,31 @@ impl<'a> Parser<'a> {
         Self { current: 0, tokens }
     }
 
-    pub fn parse(&mut self) -> Result<Expr, ParseError> {
-        self.expression()
+    pub fn parse(&mut self) -> Result<Vec<Stmt>, ParseError> {
+        let mut statements = Vec::new();
+        while !self.is_at_end() {
+            statements.push(self.statement()?);
+        }
+        Ok(statements)
+    }
+
+    fn statement(&mut self) -> Result<Stmt, ParseError> {
+        if matche_types!(self, TokenType::Print) {
+            return self.printStatement();
+        }
+        return self.expressionStatement();
+    }
+
+    fn printStatement(&mut self) -> Result<Stmt, ParseError> {
+        let value = self.expression()?;
+        self.consume(TokenType::Semicolon, "Expect ';' after value.")?;
+        Ok(Stmt::Print { expression: value })
+    }
+
+    fn expressionStatement(&mut self) -> Result<Stmt, ParseError> {
+        let value = self.expression()?;
+        self.consume(TokenType::Semicolon, "Expect ';' after value.")?;
+        Ok(Stmt::Expression { expression: value })
     }
 
     fn expression(&mut self) -> Result<Expr, ParseError> {

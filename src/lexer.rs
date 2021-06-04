@@ -1,5 +1,4 @@
 use crate::token::{Token, TokenType};
-
 use std::{error::Error, fmt, iter::Peekable, str::Chars};
 
 #[derive(Debug)]
@@ -14,16 +13,12 @@ impl fmt::Display for LexError {
             Self::UnexpectedCharacter { char, line } => {
                 write!(
                     f,
-                    "[Lex Error: {} at {}] Unexpected character {}",
+                    "line {} at {}: Unexpected character {}",
                     line, char, char
                 )
             }
             Self::UnterminatedString { char, line } => {
-                write!(
-                    f,
-                    "[Lex Error: {} at {}] Unterminated string",
-                    line, char
-                )
+                write!(f, "line {} at {}: Unterminated string", line, char)
             }
         }
     }

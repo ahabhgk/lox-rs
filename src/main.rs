@@ -6,13 +6,11 @@ mod visitor;
 
 use lexer::Lexer;
 use parser::Parser;
-use visitor::interpreter::Interpreter;
-
 use std::{
-    error,
     fs::read_to_string,
     io::{self, BufRead, Write},
 };
+use visitor::interpreter::Interpreter;
 
 pub struct Lox {
     pub interpreter: Interpreter,
@@ -27,13 +25,13 @@ impl Lox {
         }
     }
 
-    pub fn run_file(&self, path: &str) -> Result<(), io::Error> {
+    pub fn run_file(&mut self, path: &str) -> Result<(), io::Error> {
         let source = read_to_string(path)?;
         self.run(&source);
         Ok(())
     }
 
-    pub fn run_prompt(&self) -> Result<(), io::Error> {
+    pub fn run_prompt(&mut self) -> Result<(), io::Error> {
         let stdin = io::stdin();
         let stdout = io::stdout();
         let mut reader = stdin.lock();
@@ -46,28 +44,40 @@ impl Lox {
             let mut line = String::new();
             reader.read_line(&mut line)?;
 
-            match self.run(&line) {
-                Err(e) => eprintln!("{}", e),
-                Ok(res) => println!("{}", res),
-            }
+            self.run(&line);
         }
     }
 
-    fn run(&self, source: &str) -> Result<String, Box<dyn error::Error>> {
+    fn run(&mut self, source: &str) {
         let mut lexer = Lexer::new(source);
-        let tokens = lexer.scan()?;
+        let tokens = match lexer.scan() {
+            Ok(tokens) => tokens,
+            Err(e) => return eprintln!("[Lex Error] {}", e),
+        };
         let mut parser = Parser::new(tokens);
-        let expr = parser.parse()?;
-        let res = self.interpreter.interpret(&expr)?;
-        Ok(res)
+        let statements = match parser.parse() {
+            Ok(stmts) => stmts,
+            Err(e) => return eprintln!("[Parse Error] {}", e),
+        };
+        match self.interpreter.interpret(&statements) {
+            Ok(_) => {}
+            Err(e) => return eprintln!("[Runtime Error] {}", e),
+        };
     }
 }
 
-fn main() -> Result<(), Box<dyn error::Error>> {
-    let lox = Lox::new();
+fn main() {
+    let mut lox = Lox::new();
     match std::env::args().nth(1) {
-        Some(path) => lox.run_file(&path)?,
-        None => lox.run_prompt()?,
+        Some(path) => {
+            if let Err(e) = lox.run_file(&path) {
+                eprintln!("{}", e);
+            }
+        }
+        None => {
+            if let Err(e) = lox.run_prompt() {
+                eprintln!("{}", e);
+            }
+        }
     };
-    Ok(())
 }
