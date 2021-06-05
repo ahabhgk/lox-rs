@@ -20,6 +20,7 @@ macro_rules! matche_types {
 #[derive(Debug)]
 pub enum ParseError {
     UnexpectedToken { message: String, token: Token },
+    InvalidAssignment { token: Token, message: String },
 }
 
 impl fmt::Display for ParseError {
@@ -39,6 +40,11 @@ impl fmt::Display for ParseError {
                     token.line, token.lexeme, message
                 ),
             },
+            Self::InvalidAssignment { token, message } => write!(
+                f,
+                "Invalid assignment (line {} at {}) {}",
+                token.line, token.lexeme, message
+            ),
         }
     }
 }
@@ -101,13 +107,27 @@ impl<'a> Parser<'a> {
         if matche_types!(self, TokenType::Print) {
             return self.print_statement();
         }
-        return self.expression_statement();
+        if matche_types!(self, TokenType::LeftBrace) {
+            return Ok(Stmt::Block {
+                statements: self.block()?,
+            });
+        }
+        self.expression_statement()
     }
 
     fn print_statement(&mut self) -> Result<Stmt> {
         let value = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after value.")?;
         Ok(Stmt::Print { expression: value })
+    }
+
+    fn block(&mut self) -> Result<Vec<Stmt>> {
+        let mut statements = Vec::new();
+        while !self.check(TokenType::RightBrace) {
+            statements.push(self.declaration()?);
+        }
+        self.consume(TokenType::RightBrace, "Expect '}' after block.")?;
+        Ok(statements)
     }
 
     fn expression_statement(&mut self) -> Result<Stmt> {
@@ -117,7 +137,27 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> Result<Expr> {
-        self.equality()
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Result<Expr> {
+        let expr = self.equality()?;
+        if matche_types!(self, TokenType::Equal) {
+            let equals = self.previous().clone();
+            let value = self.assignment()?;
+
+            return match expr {
+                Expr::Variable { name } => Ok(Expr::Assign {
+                    name,
+                    value: Box::new(value),
+                }),
+                _ => Err(ParseError::InvalidAssignment {
+                    token: equals,
+                    message: "Invalid assignment target.".to_string(),
+                }),
+            };
+        }
+        Ok(expr)
     }
 
     fn equality(&mut self) -> Result<Expr> {

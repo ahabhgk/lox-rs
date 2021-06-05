@@ -4,7 +4,7 @@ use crate::{
     object::Object,
     token::{Token, TokenType},
 };
-use std::{error::Error, fmt, result};
+use std::{cell::RefCell, error::Error, fmt, rc::Rc, result};
 
 #[derive(Debug)]
 pub enum RuntimeError {
@@ -34,13 +34,13 @@ impl Error for RuntimeError {}
 pub type Result<T> = result::Result<T, RuntimeError>;
 
 pub struct Interpreter {
-    environment: Environment,
+    environment: Rc<RefCell<Environment>>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Interpreter {
-            environment: Environment::new(),
+            environment: Rc::new(RefCell::new(Environment::new())),
         }
     }
 
@@ -55,7 +55,21 @@ impl Interpreter {
         stmt.accept(self)
     }
 
-    fn evaluate(&self, expr: &Expr) -> Result<Object> {
+    fn execute_block(
+        &mut self,
+        statements: &Vec<Stmt>,
+        env: Rc<RefCell<Environment>>,
+    ) -> Result<()> {
+        let previous = Rc::clone(&self.environment);
+        self.environment = env;
+        for stmt in statements {
+            self.execute(stmt)?;
+        }
+        self.environment = previous;
+        Ok(())
+    }
+
+    fn evaluate(&mut self, expr: &Expr) -> Result<Object> {
         expr.accept(self)
     }
 
@@ -86,7 +100,7 @@ impl expr::Visitor<Result<Object>> for Interpreter {
     }
 
     fn visit_binary_expr(
-        &self,
+        &mut self,
         left: &Expr,
         operator: &crate::token::Token,
         right: &Expr,
@@ -156,12 +170,12 @@ impl expr::Visitor<Result<Object>> for Interpreter {
         }
     }
 
-    fn visit_grouping_expr(&self, expression: &Expr) -> Result<Object> {
+    fn visit_grouping_expr(&mut self, expression: &Expr) -> Result<Object> {
         self.evaluate(expression)
     }
 
     fn visit_unary_expr(
-        &self,
+        &mut self,
         operator: &Token,
         right: &Expr,
     ) -> Result<Object> {
@@ -177,13 +191,26 @@ impl expr::Visitor<Result<Object>> for Interpreter {
     }
 
     fn visit_variable_expr(&self, name: &Token) -> Result<Object> {
-        self.environment.get(name)
+        self.environment.borrow().get(name)
+    }
+
+    fn visit_assign_expr(
+        &mut self,
+        name: &Token,
+        value: &Expr,
+    ) -> Result<Object> {
+        let value = self.evaluate(value)?;
+        self.environment.borrow_mut().assgin(name, value.clone())?;
+        Ok(value)
     }
 }
 
 impl stmt::Visitor<Result<()>> for Interpreter {
     fn visit_block_stmt(&mut self, statements: &Vec<Stmt>) -> Result<()> {
-        todo!()
+        self.execute_block(
+            statements,
+            Rc::new(RefCell::new(Environment::from(&self.environment))),
+        )
     }
 
     fn visit_expression_stmt(&mut self, expression: &Expr) -> Result<()> {
@@ -206,7 +233,9 @@ impl stmt::Visitor<Result<()>> for Interpreter {
             .as_ref()
             .map(|v| self.evaluate(&v))
             .unwrap_or(Ok(Object::Nil))?;
-        self.environment.define(name.lexeme.clone(), value);
+        self.environment
+            .borrow_mut()
+            .define(name.lexeme.clone(), value);
         Ok(())
     }
 }

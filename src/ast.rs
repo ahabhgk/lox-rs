@@ -38,10 +38,14 @@ pub enum Expr {
     Variable {
         name: Token,
     },
+    Assign {
+        name: Token,
+        value: Box<Expr>,
+    },
 }
 
 impl Expr {
-    pub fn accept<R>(&self, visitor: &impl expr::Visitor<R>) -> R {
+    pub fn accept<R>(&self, visitor: &mut impl expr::Visitor<R>) -> R {
         match self {
             Expr::Binary {
                 left,
@@ -56,6 +60,9 @@ impl Expr {
                 visitor.visit_unary_expr(operator, right)
             }
             Expr::Variable { name } => visitor.visit_variable_expr(name),
+            Expr::Assign { name, value } => {
+                visitor.visit_assign_expr(name, value)
+            }
         }
     }
 }
@@ -66,15 +73,16 @@ pub mod expr {
 
     pub trait Visitor<R> {
         fn visit_binary_expr(
-            &self,
+            &mut self,
             left: &Expr,
             operator: &Token,
             right: &Expr,
         ) -> R;
-        fn visit_grouping_expr(&self, expression: &Expr) -> R;
+        fn visit_grouping_expr(&mut self, expression: &Expr) -> R;
         fn visit_literal_expr(&self, value: &LiteralValue) -> R;
-        fn visit_unary_expr(&self, operator: &Token, right: &Expr) -> R;
+        fn visit_unary_expr(&mut self, operator: &Token, right: &Expr) -> R;
         fn visit_variable_expr(&self, name: &Token) -> R;
+        fn visit_assign_expr(&mut self, name: &Token, value: &Expr) -> R;
     }
 }
 
