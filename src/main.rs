@@ -1,16 +1,19 @@
 mod ast;
+mod ast_printer;
+mod environment;
+mod interpreter;
 mod lexer;
+mod object;
 mod parser;
 mod token;
-mod visitor;
 
+use interpreter::Interpreter;
 use lexer::Lexer;
 use parser::Parser;
 use std::{
     fs::read_to_string,
     io::{self, BufRead, Write},
 };
-use visitor::interpreter::Interpreter;
 
 pub struct Lox {
     pub interpreter: Interpreter,
@@ -21,7 +24,7 @@ const PROMPT: &'static str = "> ";
 impl Lox {
     pub fn new() -> Self {
         Self {
-            interpreter: Interpreter,
+            interpreter: Interpreter::new(),
         }
     }
 

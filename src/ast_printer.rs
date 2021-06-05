@@ -1,6 +1,5 @@
-use super::expr;
 use crate::{
-    ast::{Expr, LiteralValue},
+    ast::{expr, Expr, LiteralValue},
     token::Token,
 };
 
@@ -44,6 +43,10 @@ impl expr::Visitor<String> for AstPrinter {
 
     fn visit_unary_expr(&self, operator: &Token, right: &Expr) -> String {
         self.parenthesize(operator.lexeme.clone(), vec![right])
+    }
+
+    fn visit_variable_expr(&self, name: &Token) -> String {
+        name.lexeme.clone()
     }
 }
 

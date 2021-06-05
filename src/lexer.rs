@@ -1,5 +1,5 @@
 use crate::token::{Token, TokenType};
-use std::{error::Error, fmt, iter::Peekable, str::Chars};
+use std::{error::Error, fmt, iter::Peekable, result, str::Chars};
 
 #[derive(Debug)]
 pub enum LexError {
@@ -13,18 +13,20 @@ impl fmt::Display for LexError {
             Self::UnexpectedCharacter { char, line } => {
                 write!(
                     f,
-                    "line {} at {}: Unexpected character {}",
+                    "Unexpected character (line {} at {}) {}",
                     line, char, char
                 )
             }
             Self::UnterminatedString { char, line } => {
-                write!(f, "line {} at {}: Unterminated string", line, char)
+                write!(f, "Unterminated string (line {} at {})", line, char)
             }
         }
     }
 }
 
 impl Error for LexError {}
+
+pub type Result<T> = result::Result<T, LexError>;
 
 pub struct Lexer<'a> {
     source: Peekable<Chars<'a>>,
@@ -41,7 +43,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn scan(&mut self) -> Result<&Vec<Token>, LexError> {
+    pub fn scan(&mut self) -> Result<&Vec<Token>> {
         while let Some(c) = self.source.next() {
             match c {
                 '(' => self.add_token(TokenType::LeftParen, "("),

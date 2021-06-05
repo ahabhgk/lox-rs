@@ -1,6 +1,7 @@
-use super::{expr, stmt};
 use crate::{
-    ast::{Expr, LiteralValue, Stmt},
+    ast::{expr, stmt, Expr, LiteralValue, Stmt},
+    environment::Environment,
+    object::Object,
     token::{Token, TokenType},
 };
 use std::{error::Error, fmt, result};
@@ -8,6 +9,7 @@ use std::{error::Error, fmt, result};
 #[derive(Debug)]
 pub enum RuntimeError {
     TypeError { token: Token, message: String },
+    UndefinedError { token: Token, message: String },
 }
 
 impl fmt::Display for RuntimeError {
@@ -15,7 +17,12 @@ impl fmt::Display for RuntimeError {
         match self {
             Self::TypeError { token, message } => write!(
                 f,
-                "[Runtime Error: {} at {}] TypeError: {}",
+                "TypeError (line {} at {}) {}",
+                token.line, token.lexeme, message
+            ),
+            Self::UndefinedError { token, message } => write!(
+                f,
+                "UndefinedError (line {} at {}) {}",
                 token.line, token.lexeme, message
             ),
         }
@@ -26,42 +33,17 @@ impl Error for RuntimeError {}
 
 pub type Result<T> = result::Result<T, RuntimeError>;
 
-pub struct Interpreter;
-
-enum Object {
-    Boolean(bool),
-    Nil,
-    Number(f64),
-    String(String),
-}
-
-impl Object {
-    fn equals(&self, other: &Object) -> bool {
-        match (self, other) {
-            (Object::Nil, Object::Nil) => true,
-            (_, Object::Nil) => false,
-            (Object::Nil, _) => false,
-            (Object::Boolean(left), Object::Boolean(right)) => left == right,
-            (Object::Number(left), Object::Number(right)) => left == right,
-            (Object::String(left), Object::String(right)) => left == right,
-            _ => false,
-        }
-    }
-}
-
-impl fmt::Display for Object {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Object::Nil => "nil".to_string(),
-            Object::Number(n) => n.to_string(),
-            Object::Boolean(b) => b.to_string(),
-            Object::String(s) => s.to_string(),
-        };
-        write!(f, "{}", s)
-    }
+pub struct Interpreter {
+    environment: Environment,
 }
 
 impl Interpreter {
+    pub fn new() -> Self {
+        Interpreter {
+            environment: Environment::new(),
+        }
+    }
+
     pub fn interpret(&mut self, statements: &Vec<Stmt>) -> Result<()> {
         for stmt in statements {
             self.execute(stmt)?;
@@ -193,6 +175,10 @@ impl expr::Visitor<Result<Object>> for Interpreter {
             _ => unreachable!(),
         }
     }
+
+    fn visit_variable_expr(&self, name: &Token) -> Result<Object> {
+        self.environment.get(name)
+    }
 }
 
 impl stmt::Visitor<Result<()>> for Interpreter {
@@ -216,6 +202,11 @@ impl stmt::Visitor<Result<()>> for Interpreter {
         name: &Token,
         initializer: &Option<Expr>,
     ) -> Result<()> {
-        todo!()
+        let value = initializer
+            .as_ref()
+            .map(|v| self.evaluate(&v))
+            .unwrap_or(Ok(Object::Nil))?;
+        self.environment.define(name.lexeme.clone(), value);
+        Ok(())
     }
 }
