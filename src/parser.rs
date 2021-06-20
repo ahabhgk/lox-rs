@@ -104,15 +104,35 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&mut self) -> Result<Stmt> {
-        if matche_types!(self, TokenType::Print) {
-            return self.print_statement();
-        }
-        if matche_types!(self, TokenType::LeftBrace) {
-            return Ok(Stmt::Block {
+        if matche_types!(self, TokenType::If) {
+            self.if_statement()
+        } else if matche_types!(self, TokenType::Print) {
+            self.print_statement()
+        } else if matche_types!(self, TokenType::LeftBrace) {
+            Ok(Stmt::Block {
                 statements: self.block()?,
-            });
+            })
+        } else {
+            self.expression_statement()
         }
-        self.expression_statement()
+    }
+
+    fn if_statement(&mut self) -> Result<Stmt> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'if'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expect ')' after if condition.")?;
+
+        let then_branch = Box::new(self.statement()?);
+        let else_branch = if matche_types!(self, TokenType::Eles) {
+            Box::new(Some(self.statement()?))
+        } else {
+            Box::new(None)
+        };
+        Ok(Stmt::If {
+            condition,
+            then_branch,
+            else_branch,
+        })
     }
 
     fn print_statement(&mut self) -> Result<Stmt> {
@@ -141,7 +161,7 @@ impl<'a> Parser<'a> {
     }
 
     fn assignment(&mut self) -> Result<Expr> {
-        let expr = self.equality()?;
+        let expr = self.or()?;
         if matche_types!(self, TokenType::Equal) {
             let equals = self.previous().clone();
             let value = self.assignment()?;
@@ -155,6 +175,34 @@ impl<'a> Parser<'a> {
                     token: equals,
                     message: "Invalid assignment target.".to_string(),
                 }),
+            };
+        }
+        Ok(expr)
+    }
+
+    fn or(&mut self) -> Result<Expr> {
+        let mut expr = self.and()?;
+        while matche_types!(self, TokenType::Or) {
+            let operator = self.previous().clone();
+            let right = self.equality()?;
+            expr = Expr::Logical {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
+            };
+        }
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> Result<Expr> {
+        let mut expr = self.equality()?;
+        while matche_types!(self, TokenType::And) {
+            let operator = self.previous().clone();
+            let right = self.equality()?;
+            expr = Expr::Logical {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
             };
         }
         Ok(expr)
@@ -237,22 +285,40 @@ impl<'a> Parser<'a> {
 
     fn primary(&mut self) -> Result<Expr> {
         let expr = match &self.peek().r#type {
-            TokenType::False => Expr::Literal {
-                value: LiteralValue::Boolean(false),
-            },
-            TokenType::True => Expr::Literal {
-                value: LiteralValue::Boolean(true),
-            },
-            TokenType::Nil => Expr::Literal {
-                value: LiteralValue::Nil,
-            },
-            TokenType::String { literal } => Expr::Literal {
-                value: LiteralValue::String(literal.clone()),
-            },
-            TokenType::Number { literal } => Expr::Literal {
-                value: LiteralValue::Number(*literal),
-            },
+            TokenType::False => {
+                self.advance();
+                Expr::Literal {
+                    value: LiteralValue::Boolean(false),
+                }
+            }
+            TokenType::True => {
+                self.advance();
+                Expr::Literal {
+                    value: LiteralValue::Boolean(true),
+                }
+            }
+            TokenType::Nil => {
+                self.advance();
+                Expr::Literal {
+                    value: LiteralValue::Nil,
+                }
+            }
+            TokenType::String { literal } => {
+                let literal = literal.clone();
+                self.advance();
+                Expr::Literal {
+                    value: LiteralValue::String(literal),
+                }
+            }
+            TokenType::Number { literal } => {
+                let literal = *literal;
+                self.advance();
+                Expr::Literal {
+                    value: LiteralValue::Number(literal),
+                }
+            }
             TokenType::LeftParen => {
+                self.advance();
                 let expr = self.expression()?;
                 self.consume(
                     TokenType::RightParen,
@@ -262,18 +328,20 @@ impl<'a> Parser<'a> {
                     expression: Box::new(expr),
                 }
             }
-            TokenType::Identifier => Expr::Variable {
-                name: self.peek().clone(),
-            },
+            TokenType::Identifier => {
+                self.advance();
+                Expr::Variable {
+                    name: self.previous().clone(),
+                }
+            }
             _ => {
+                self.advance();
                 return Err(ParseError::UnexpectedToken {
-                    token: self.peek().clone(),
+                    token: self.previous().clone(),
                     message: "Expect expression.".to_string(),
-                })
+                });
             }
         };
-
-        self.advance();
         Ok(expr)
     }
 
@@ -287,26 +355,26 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn synchronize(&mut self) {
-        self.advance();
-        while !self.is_at_end() {
-            if self.previous().r#type == TokenType::Semicolon {
-                return;
-            }
-            match self.peek().r#type {
-                TokenType::Class
-                | TokenType::Fun
-                | TokenType::Var
-                | TokenType::For
-                | TokenType::If
-                | TokenType::While
-                | TokenType::Print
-                | TokenType::Return => return,
-                _ => {}
-            }
-            self.advance();
-        }
-    }
+    // fn synchronize(&mut self) {
+    //     self.advance();
+    //     while !self.is_at_end() {
+    //         if self.previous().r#type == TokenType::Semicolon {
+    //             return;
+    //         }
+    //         match self.peek().r#type {
+    //             TokenType::Class
+    //             | TokenType::Fun
+    //             | TokenType::Var
+    //             | TokenType::For
+    //             | TokenType::If
+    //             | TokenType::While
+    //             | TokenType::Print
+    //             | TokenType::Return => return,
+    //             _ => {}
+    //         }
+    //         self.advance();
+    //     }
+    // }
 
     fn check(&self, r#type: TokenType) -> bool {
         if self.is_at_end() {

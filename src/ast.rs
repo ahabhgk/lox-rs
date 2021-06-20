@@ -31,6 +31,11 @@ pub enum Expr {
     Literal {
         value: LiteralValue,
     },
+    Logical {
+        left: Box<Expr>,
+        operator: Token,
+        right: Box<Expr>,
+    },
     Unary {
         operator: Token,
         right: Box<Expr>,
@@ -56,6 +61,11 @@ impl Expr {
                 visitor.visit_grouping_expr(expression)
             }
             Expr::Literal { value } => visitor.visit_literal_expr(value),
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => visitor.visit_logical_expr(left, operator, right),
             Expr::Unary { operator, right } => {
                 visitor.visit_unary_expr(operator, right)
             }
@@ -80,6 +90,12 @@ pub mod expr {
         ) -> R;
         fn visit_grouping_expr(&mut self, expression: &Expr) -> R;
         fn visit_literal_expr(&self, value: &LiteralValue) -> R;
+        fn visit_logical_expr(
+            &mut self,
+            left: &Expr,
+            operator: &Token,
+            right: &Expr,
+        ) -> R;
         fn visit_unary_expr(&mut self, operator: &Token, right: &Expr) -> R;
         fn visit_variable_expr(&self, name: &Token) -> R;
         fn visit_assign_expr(&mut self, name: &Token, value: &Expr) -> R;
@@ -101,6 +117,11 @@ pub enum Stmt {
         initializer: Option<Expr>,
     },
     Nil,
+    If {
+        condition: Expr,
+        then_branch: Box<Stmt>,
+        else_branch: Box<Option<Stmt>>,
+    },
 }
 
 impl Stmt {
@@ -114,6 +135,11 @@ impl Stmt {
             Stmt::Var { name, initializer } => {
                 visitor.visit_var_stmt(name, initializer)
             }
+            Stmt::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => visitor.visit_if_stmt(condition, then_branch, else_branch),
             Stmt::Nil => unimplemented!(),
         }
     }
@@ -131,6 +157,12 @@ pub mod stmt {
             &mut self,
             name: &Token,
             initializer: &Option<Expr>,
+        ) -> R;
+        fn visit_if_stmt(
+            &mut self,
+            condition: &Expr,
+            then_branch: &Stmt,
+            else_branch: &Option<Stmt>,
         ) -> R;
     }
 }

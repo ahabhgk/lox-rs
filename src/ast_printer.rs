@@ -52,6 +52,10 @@ impl expr::Visitor<String> for AstPrinter {
     fn visit_assign_expr(&mut self, name: &Token, value: &Expr) -> String {
         self.parenthesize(name.lexeme.clone(), vec![value])
     }
+
+    fn visit_logical_expr(&mut self, left: &Expr, operator: &Token, right: &Expr) -> String {
+        self.parenthesize(operator.lexeme.clone(), vec![left, right])
+    }
 }
 
 #[cfg(test)]

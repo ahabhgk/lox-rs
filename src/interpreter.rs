@@ -203,6 +203,22 @@ impl expr::Visitor<Result<Object>> for Interpreter {
         self.environment.borrow_mut().assgin(name, value.clone())?;
         Ok(value)
     }
+
+    fn visit_logical_expr(
+        &mut self,
+        left: &Expr,
+        operator: &Token,
+        right: &Expr,
+    ) -> Result<Object> {
+        let left = self.evaluate(left)?;
+        if operator.r#type == TokenType::Or && self.is_truthy(&left) {
+            Ok(left)
+        } else if operator.r#type == TokenType::And && !self.is_truthy(&left) {
+            Ok(left)
+        } else {
+            self.evaluate(right)
+        }
+    }
 }
 
 impl stmt::Visitor<Result<()>> for Interpreter {
@@ -236,6 +252,21 @@ impl stmt::Visitor<Result<()>> for Interpreter {
         self.environment
             .borrow_mut()
             .define(name.lexeme.clone(), value);
+        Ok(())
+    }
+
+    fn visit_if_stmt(
+        &mut self,
+        condition: &Expr,
+        then_branch: &Stmt,
+        else_branch: &Option<Stmt>,
+    ) -> Result<()> {
+        let condition_value = self.evaluate(condition)?;
+        if self.is_truthy(&condition_value) {
+            self.execute(&then_branch)?;
+        } else if let Some(else_branch) = else_branch {
+            self.execute(else_branch)?;
+        }
         Ok(())
     }
 }
