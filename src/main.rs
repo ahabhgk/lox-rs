@@ -11,6 +11,7 @@ use interpreter::Interpreter;
 use lexer::Lexer;
 use parser::Parser;
 use std::{
+    error,
     fs::read_to_string,
     io::{self, BufRead, Write},
 };
@@ -67,6 +68,15 @@ impl Lox {
             Err(e) => return eprintln!("[Runtime Error] {}", e),
         };
     }
+
+    fn debug_run(&mut self, source: &str) -> Result<(), Box<dyn error::Error>> {
+        let mut lexer = Lexer::new(source);
+        let tokens = lexer.scan()?;
+        let mut parser = Parser::new(tokens);
+        let statements = parser.parse()?;
+        self.interpreter.interpret(&statements)?;
+        Ok(())
+    }
 }
 
 fn main() {
@@ -83,4 +93,31 @@ fn main() {
             }
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Lox;
+    use std::{error, fs::read_to_string};
+
+    fn run_case(path: &str) -> Result<(), Box<dyn error::Error>> {
+        let mut lox = Lox::new();
+        let source = read_to_string(path)?;
+        lox.debug_run(&source)
+    }
+
+    #[test]
+    fn test_enclosing() {
+        assert!(run_case("./examples/enclosing.lox").is_ok())
+    }
+
+    #[test]
+    fn test_for() {
+        assert!(run_case("./examples/for.lox").is_ok())
+    }
+
+    #[test]
+    fn test_or_and() {
+        assert!(run_case("./examples/or-and.lox").is_ok())
+    }
 }

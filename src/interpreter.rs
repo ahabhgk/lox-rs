@@ -269,4 +269,17 @@ impl stmt::Visitor<Result<()>> for Interpreter {
         }
         Ok(())
     }
+
+    fn visit_while_stmt(
+        &mut self,
+        condition: &Expr,
+        body: &Stmt,
+    ) -> Result<()> {
+        let mut value = self.evaluate(condition)?;
+        while self.is_truthy(&value) {
+            self.execute(body)?;
+            value = self.evaluate(condition)?;
+        }
+        Ok(())
+    }
 }

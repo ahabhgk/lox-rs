@@ -122,6 +122,10 @@ pub enum Stmt {
         then_branch: Box<Stmt>,
         else_branch: Box<Option<Stmt>>,
     },
+    While {
+        condition: Expr,
+        body: Box<Stmt>,
+    },
 }
 
 impl Stmt {
@@ -140,6 +144,9 @@ impl Stmt {
                 then_branch,
                 else_branch,
             } => visitor.visit_if_stmt(condition, then_branch, else_branch),
+            Stmt::While { condition, body } => {
+                visitor.visit_while_stmt(condition, body)
+            }
             Stmt::Nil => unimplemented!(),
         }
     }
@@ -164,5 +171,6 @@ pub mod stmt {
             then_branch: &Stmt,
             else_branch: &Option<Stmt>,
         ) -> R;
+        fn visit_while_stmt(&mut self, condition: &Expr, body: &Stmt) -> R;
     }
 }
