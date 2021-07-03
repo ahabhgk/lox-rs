@@ -72,7 +72,9 @@ impl<'a> Parser<'a> {
     }
 
     fn declaration(&mut self) -> Result<Stmt> {
-        let statement = if matche_types!(self, TokenType::Var) {
+        let statement = if matche_types!(self, TokenType::Fun) {
+            self.function("function")
+        } else if matche_types!(self, TokenType::Var) {
             self.var_declaration()
         } else {
             self.statement()
@@ -85,6 +87,42 @@ impl<'a> Parser<'a> {
         //     }
         //     other => other,
         // }
+    }
+
+    fn function(&mut self, kind: &str) -> Result<Stmt> {
+        let name = self
+            .consume(
+                TokenType::Identifier,
+                format!("Expect {} name.", kind).as_str(),
+            )?
+            .clone();
+        self.consume(
+            TokenType::LeftParen,
+            format!("Expect '(' after {} name.", kind).as_str(),
+        )?;
+        let mut params = Vec::new();
+        if !self.check(TokenType::RightParen) {
+            loop {
+                params.push(
+                    self.consume(
+                        TokenType::Identifier,
+                        "Expect parameter name.",
+                    )?
+                    .clone(),
+                );
+
+                if !matche_types!(self, TokenType::Comma) {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenType::RightParen, "Expect ')' after parameters.")?;
+        self.consume(
+            TokenType::LeftBrace,
+            format!("Expect '{{' before {} body.", kind).as_str(),
+        )?;
+        let body = self.block()?;
+        Ok(Stmt::Function { name, params, body })
     }
 
     fn var_declaration(&mut self) -> Result<Stmt> {
@@ -104,7 +142,9 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&mut self) -> Result<Stmt> {
-        if matche_types!(self, TokenType::For) {
+        if matche_types!(self, TokenType::Return) {
+            self.return_statement()
+        } else if matche_types!(self, TokenType::For) {
             self.for_statement()
         } else if matche_types!(self, TokenType::While) {
             self.while_statement()
@@ -119,6 +159,17 @@ impl<'a> Parser<'a> {
         } else {
             self.expression_statement()
         }
+    }
+
+    fn return_statement(&mut self) -> Result<Stmt> {
+        let keyword = self.previous().clone();
+        let value = if !self.check(TokenType::Semicolon) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(TokenType::Semicolon, "Expect ';' after return value.")?;
+        Ok(Stmt::Return { keyword, value })
     }
 
     fn for_statement(&mut self) -> Result<Stmt> {
@@ -346,8 +397,35 @@ impl<'a> Parser<'a> {
                 right: Box::new(right),
             })
         } else {
-            self.primary()
+            self.call()
         }
+    }
+
+    fn call(&mut self) -> Result<Expr> {
+        let mut expr = self.primary()?;
+        while matche_types!(self, TokenType::LeftParen) {
+            expr = self.finish_call(expr)?;
+        }
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr> {
+        let mut arguments = Vec::new();
+        if !self.check(TokenType::RightParen) {
+            loop {
+                arguments.push(self.expression()?);
+                if !matche_types!(self, TokenType::Comma) {
+                    break;
+                }
+            }
+        }
+        let parent =
+            self.consume(TokenType::RightParen, "Expect ')' after arguments.")?;
+        Ok(Expr::Call {
+            callee: Box::new(callee),
+            paren: parent.clone(),
+            arguments,
+        })
     }
 
     fn primary(&mut self) -> Result<Expr> {
@@ -472,23 +550,4 @@ impl<'a> Parser<'a> {
             .get(self.current - 1)
             .expect("Previous was empty.")
     }
-}
-
-#[cfg(test)]
-mod tests {
-    // use super::*;
-    // use crate::ast_printer::AstPrinter;
-    // use crate::lexer::Lexer;
-
-    // #[test]
-    // fn test_expression() {
-    //     let mut lexer = Lexer::new("-123 * 45.67");
-    //     let tokens = lexer.scan().expect("Could not scan sample code.");
-
-    //     let mut parser = Parser::new(tokens);
-    //     let statements = parser.parse().expect("Could not parse sample code.");
-    //     let printer = AstPrinter;
-
-    //     assert_eq!(printer.print(statements), "(* (- 123) 45.67)");
-    // }
 }

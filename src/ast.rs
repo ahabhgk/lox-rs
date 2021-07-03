@@ -1,6 +1,7 @@
 use crate::token::Token;
 use std::fmt;
 
+#[derive(Clone)]
 pub enum LiteralValue {
     Boolean(bool),
     Nil,
@@ -18,7 +19,7 @@ impl fmt::Display for LiteralValue {
         }
     }
 }
-
+#[derive(Clone)]
 pub enum Expr {
     Binary {
         left: Box<Expr>,
@@ -47,6 +48,11 @@ pub enum Expr {
         name: Token,
         value: Box<Expr>,
     },
+    Call {
+        callee: Box<Expr>,
+        paren: Token,
+        arguments: Vec<Expr>,
+    },
 }
 
 impl Expr {
@@ -73,6 +79,11 @@ impl Expr {
             Expr::Assign { name, value } => {
                 visitor.visit_assign_expr(name, value)
             }
+            Expr::Call {
+                callee,
+                paren,
+                arguments,
+            } => visitor.visit_call_expr(callee, paren, arguments),
         }
     }
 }
@@ -99,9 +110,16 @@ pub mod expr {
         fn visit_unary_expr(&mut self, operator: &Token, right: &Expr) -> R;
         fn visit_variable_expr(&self, name: &Token) -> R;
         fn visit_assign_expr(&mut self, name: &Token, value: &Expr) -> R;
+        fn visit_call_expr(
+            &mut self,
+            callee: &Expr,
+            paren: &Token,
+            arguments: &Vec<Expr>,
+        ) -> R;
     }
 }
 
+#[derive(Clone)]
 pub enum Stmt {
     Block {
         statements: Vec<Stmt>,
@@ -126,6 +144,15 @@ pub enum Stmt {
         condition: Expr,
         body: Box<Stmt>,
     },
+    Function {
+        name: Token,
+        params: Vec<Token>,
+        body: Vec<Stmt>,
+    },
+    Return {
+        keyword: Token,
+        value: Option<Expr>,
+    },
 }
 
 impl Stmt {
@@ -148,6 +175,12 @@ impl Stmt {
                 visitor.visit_while_stmt(condition, body)
             }
             Stmt::Nil => unimplemented!(),
+            Stmt::Function { name, params, body } => {
+                visitor.visit_function_stmt(name, params, body)
+            }
+            Stmt::Return { keyword, value } => {
+                visitor.visit_return_stmt(keyword, value)
+            }
         }
     }
 }
@@ -172,5 +205,16 @@ pub mod stmt {
             else_branch: &Option<Stmt>,
         ) -> R;
         fn visit_while_stmt(&mut self, condition: &Expr, body: &Stmt) -> R;
+        fn visit_function_stmt(
+            &mut self,
+            name: &Token,
+            params: &Vec<Token>,
+            body: &Vec<Stmt>,
+        ) -> R;
+        fn visit_return_stmt(
+            &mut self,
+            keyword: &Token,
+            value: &Option<Expr>,
+        ) -> R;
     }
 }

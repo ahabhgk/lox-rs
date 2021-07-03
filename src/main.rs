@@ -120,4 +120,14 @@ mod tests {
     fn test_or_and() {
         assert!(run_case("./examples/or-and.lox").is_ok())
     }
+
+    #[test]
+    fn test_fib() {
+        assert!(run_case("./examples/fib.lox").is_ok())
+    }
+
+    #[test]
+    fn test_closure() {
+        assert!(run_case("./examples/closure.lox").is_ok())
+    }
 }

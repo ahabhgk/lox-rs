@@ -1,15 +1,23 @@
 use crate::{
     ast::{expr, stmt, Expr, LiteralValue, Stmt},
     environment::Environment,
-    object::Object,
+    object::{Function, Object},
     token::{Token, TokenType},
 };
-use std::{cell::RefCell, error::Error, fmt, rc::Rc, result};
+use std::{
+    cell::RefCell,
+    error::Error,
+    fmt,
+    rc::Rc,
+    result,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[derive(Debug)]
 pub enum RuntimeError {
     TypeError { token: Token, message: String },
     UndefinedError { token: Token, message: String },
+    Return { value: Object },
 }
 
 impl fmt::Display for RuntimeError {
@@ -25,6 +33,7 @@ impl fmt::Display for RuntimeError {
                 "UndefinedError (line {} at {}) {}",
                 token.line, token.lexeme, message
             ),
+            Self::Return { value } => write!(f, "Return {:?}", value),
         }
     }
 }
@@ -39,6 +48,19 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new() -> Self {
+        let globals = Rc::new(RefCell::new(Environment::new()));
+        let clock = Object::Callable(Function::Native {
+            arity: 0,
+            body: Box::new(|_args: &Vec<Object>| {
+                Object::Number(
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Could not retrieve time.")
+                        .as_millis() as f64,
+                )
+            }),
+        });
+        globals.borrow_mut().define("clock".to_string(), clock);
         Interpreter {
             environment: Rc::new(RefCell::new(Environment::new())),
         }
@@ -55,7 +77,7 @@ impl Interpreter {
         stmt.accept(self)
     }
 
-    fn execute_block(
+    pub fn execute_block(
         &mut self,
         statements: &Vec<Stmt>,
         env: Rc<RefCell<Environment>>,
@@ -219,6 +241,40 @@ impl expr::Visitor<Result<Object>> for Interpreter {
             self.evaluate(right)
         }
     }
+
+    fn visit_call_expr(
+        &mut self,
+        callee: &Expr,
+        paren: &Token,
+        arguments: &Vec<Expr>,
+    ) -> Result<Object> {
+        let callee_value = self.evaluate(callee)?;
+        let argument_values: Result<Vec<Object>> = arguments
+            .into_iter()
+            .map(|expr| self.evaluate(expr))
+            .collect();
+        let args = argument_values?;
+        if let Object::Callable(function) = callee_value {
+            let size = args.len();
+            if size != function.arity() {
+                Err(RuntimeError::TypeError {
+                    token: paren.clone(),
+                    message: format!(
+                        "Expected {} arguments but got {}.",
+                        function.arity(),
+                        size
+                    ),
+                })
+            } else {
+                function.call(self, &args)
+            }
+        } else {
+            Err(RuntimeError::TypeError {
+                token: paren.clone(),
+                message: "Can only call functions and classes.".to_string(),
+            })
+        }
+    }
 }
 
 impl stmt::Visitor<Result<()>> for Interpreter {
@@ -281,5 +337,37 @@ impl stmt::Visitor<Result<()>> for Interpreter {
             value = self.evaluate(condition)?;
         }
         Ok(())
+    }
+
+    fn visit_function_stmt(
+        &mut self,
+        name: &Token,
+        params: &Vec<Token>,
+        body: &Vec<Stmt>,
+    ) -> Result<()> {
+        let function = Function::User {
+            name: name.clone(),
+            params: params.clone(),
+            body: body.clone(),
+            closure: Rc::clone(&self.environment),
+        };
+        self.environment
+            .borrow_mut()
+            .define(name.lexeme.clone(), Object::Callable(function));
+        Ok(())
+    }
+
+    fn visit_return_stmt(
+        &mut self,
+        _keyword: &Token,
+        value: &Option<Expr>,
+    ) -> Result<()> {
+        let return_value: Object = value
+            .as_ref()
+            .map(|v| self.evaluate(v))
+            .unwrap_or(Ok(Object::Nil))?;
+        Err(RuntimeError::Return {
+            value: return_value,
+        })
     }
 }
