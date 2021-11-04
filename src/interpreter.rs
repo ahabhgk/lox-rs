@@ -6,6 +6,7 @@ use crate::{
 };
 use std::{
     cell::RefCell,
+    collections::HashMap,
     error::Error,
     fmt,
     rc::Rc,
@@ -14,13 +15,13 @@ use std::{
 };
 
 #[derive(Debug)]
-pub enum RuntimeError {
+pub enum InterpretError {
     TypeError { token: Token, message: String },
     UndefinedError { token: Token, message: String },
     Return { value: Object },
 }
 
-impl fmt::Display for RuntimeError {
+impl fmt::Display for InterpretError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::TypeError { token, message } => write!(
@@ -38,17 +39,19 @@ impl fmt::Display for RuntimeError {
     }
 }
 
-impl Error for RuntimeError {}
+impl Error for InterpretError {}
 
-pub type Result<T> = result::Result<T, RuntimeError>;
+pub type Result<T> = result::Result<T, InterpretError>;
 
 pub struct Interpreter {
+    global: Rc<RefCell<Environment>>,
     environment: Rc<RefCell<Environment>>,
+    locals: HashMap<Token, usize>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
-        let globals = Rc::new(RefCell::new(Environment::new()));
+        let global = Rc::new(RefCell::new(Environment::new()));
         let clock = Object::Callable(Function::Native {
             arity: 0,
             body: Box::new(|_args: &Vec<Object>| {
@@ -60,9 +63,11 @@ impl Interpreter {
                 )
             }),
         });
-        globals.borrow_mut().define("clock".to_string(), clock);
+        global.borrow_mut().define("clock".to_string(), clock);
         Interpreter {
-            environment: Rc::new(RefCell::new(Environment::new())),
+            environment: Rc::clone(&global),
+            global,
+            locals: HashMap::new(),
         }
     }
 
@@ -95,8 +100,8 @@ impl Interpreter {
         expr.accept(self)
     }
 
-    fn number_operand_error(&self, operator: &Token) -> RuntimeError {
-        RuntimeError::TypeError {
+    fn number_operand_error(&self, operator: &Token) -> InterpretError {
+        InterpretError::TypeError {
             token: operator.clone(),
             message: "Operand must be a number.".to_string(),
         }
@@ -109,10 +114,22 @@ impl Interpreter {
             _ => true,
         }
     }
+
+    pub fn resolve(&mut self, name: &Token, depth: usize) {
+        self.locals.insert(name.clone(), depth);
+    }
+
+    fn look_up_variable(&self, name: &Token) -> Result<Object> {
+        if let Some(distance) = self.locals.get(name) {
+            Ok(self.environment.borrow().get_at(*distance, name))
+        } else {
+            self.global.borrow().get(name)
+        }
+    }
 }
 
 impl expr::Visitor<Result<Object>> for Interpreter {
-    fn visit_literal_expr(&self, value: &LiteralValue) -> Result<Object> {
+    fn visit_literal_expr(&mut self, value: &LiteralValue) -> Result<Object> {
         match value {
             LiteralValue::Boolean(b) => Ok(Object::Boolean(*b)),
             LiteralValue::Nil => Ok(Object::Nil),
@@ -180,7 +197,7 @@ impl expr::Visitor<Result<Object>> for Interpreter {
                 (Object::String(ls), Object::String(rs)) => {
                     Ok(Object::String(ls + &rs))
                 }
-                _ => Err(RuntimeError::TypeError {
+                _ => Err(InterpretError::TypeError {
                     token: operator.clone(),
                     message: "Operands must be two numbers or two strings."
                         .to_string(),
@@ -212,8 +229,8 @@ impl expr::Visitor<Result<Object>> for Interpreter {
         }
     }
 
-    fn visit_variable_expr(&self, name: &Token) -> Result<Object> {
-        self.environment.borrow().get(name)
+    fn visit_variable_expr(&mut self, name: &Token) -> Result<Object> {
+        self.look_up_variable(name)
     }
 
     fn visit_assign_expr(
@@ -222,7 +239,15 @@ impl expr::Visitor<Result<Object>> for Interpreter {
         value: &Expr,
     ) -> Result<Object> {
         let value = self.evaluate(value)?;
-        self.environment.borrow_mut().assgin(name, value.clone())?;
+        if let Some(distance) = self.locals.get(name) {
+            self.environment.borrow_mut().assign_at(
+                *distance,
+                name,
+                value.clone(),
+            );
+        } else {
+            self.environment.borrow_mut().assign(name, value.clone())?;
+        }
         Ok(value)
     }
 
@@ -257,7 +282,7 @@ impl expr::Visitor<Result<Object>> for Interpreter {
         if let Object::Callable(function) = callee_value {
             let size = args.len();
             if size != function.arity() {
-                Err(RuntimeError::TypeError {
+                Err(InterpretError::TypeError {
                     token: paren.clone(),
                     message: format!(
                         "Expected {} arguments but got {}.",
@@ -269,7 +294,7 @@ impl expr::Visitor<Result<Object>> for Interpreter {
                 function.call(self, &args)
             }
         } else {
-            Err(RuntimeError::TypeError {
+            Err(InterpretError::TypeError {
                 token: paren.clone(),
                 message: "Can only call functions and classes.".to_string(),
             })
@@ -366,7 +391,7 @@ impl stmt::Visitor<Result<()>> for Interpreter {
             .as_ref()
             .map(|v| self.evaluate(v))
             .unwrap_or(Ok(Object::Nil))?;
-        Err(RuntimeError::Return {
+        Err(InterpretError::Return {
             value: return_value,
         })
     }

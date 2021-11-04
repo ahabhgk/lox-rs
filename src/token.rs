@@ -1,3 +1,5 @@
+use std::hash::{Hash, Hasher};
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     LeftParen,
@@ -86,3 +88,12 @@ impl Token {
         }
     }
 }
+
+impl Hash for Token {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.lexeme.hash(state);
+        self.line.hash(state);
+    }
+}
+
+impl Eq for Token {}

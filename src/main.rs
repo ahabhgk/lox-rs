@@ -5,11 +5,13 @@ mod interpreter;
 mod lexer;
 mod object;
 mod parser;
+mod resolver;
 mod token;
 
 use interpreter::Interpreter;
 use lexer::Lexer;
 use parser::Parser;
+use resolver::Resolver;
 use std::{
     error,
     fs::read_to_string,
@@ -29,51 +31,42 @@ impl Lox {
         }
     }
 
-    pub fn run_file(&mut self, path: &str) -> Result<(), io::Error> {
-        let source = read_to_string(path)?;
-        self.run(&source);
-        Ok(())
+    pub fn run_file(&mut self, path: &str) {
+        let source = read_to_string(path).unwrap();
+        if let Err(e) = self.run(&source) {
+            eprintln!("{}", e);
+        }
     }
 
-    pub fn run_prompt(&mut self) -> Result<(), io::Error> {
+    pub fn run_prompt(&mut self) {
         let stdin = io::stdin();
         let stdout = io::stdout();
         let mut reader = stdin.lock();
         let mut writer = stdout.lock();
 
         loop {
-            writer.write(PROMPT.as_bytes())?;
-            writer.flush()?;
+            writer.write(PROMPT.as_bytes()).unwrap();
+            writer.flush().unwrap();
 
             let mut line = String::new();
-            reader.read_line(&mut line)?;
+            reader.read_line(&mut line).unwrap();
 
-            self.run(&line);
+            if let Err(e) = self.run(&line) {
+                eprintln!("{}", e);
+            }
         }
     }
 
-    fn run(&mut self, source: &str) {
-        let mut lexer = Lexer::new(source);
-        let tokens = match lexer.scan() {
-            Ok(tokens) => tokens,
-            Err(e) => return eprintln!("[Lex Error] {}", e),
-        };
-        let mut parser = Parser::new(tokens);
-        let statements = match parser.parse() {
-            Ok(stmts) => stmts,
-            Err(e) => return eprintln!("[Parse Error] {}", e),
-        };
-        match self.interpreter.interpret(&statements) {
-            Ok(_) => {}
-            Err(e) => return eprintln!("[Runtime Error] {}", e),
-        };
-    }
-
-    fn debug_run(&mut self, source: &str) -> Result<(), Box<dyn error::Error>> {
+    fn run(&mut self, source: &str) -> Result<(), Box<dyn error::Error>> {
         let mut lexer = Lexer::new(source);
         let tokens = lexer.scan()?;
+
         let mut parser = Parser::new(tokens);
         let statements = parser.parse()?;
+
+        let mut resolver = Resolver::new(&mut self.interpreter);
+        resolver.resolve_stmts(&statements)?;
+
         self.interpreter.interpret(&statements)?;
         Ok(())
     }
@@ -82,16 +75,8 @@ impl Lox {
 fn main() {
     let mut lox = Lox::new();
     match std::env::args().nth(1) {
-        Some(path) => {
-            if let Err(e) = lox.run_file(&path) {
-                eprintln!("{}", e);
-            }
-        }
-        None => {
-            if let Err(e) = lox.run_prompt() {
-                eprintln!("{}", e);
-            }
-        }
+        Some(path) => lox.run_file(&path),
+        None => lox.run_prompt(),
     };
 }
 
@@ -103,7 +88,7 @@ mod tests {
     fn run_case(path: &str) -> Result<(), Box<dyn error::Error>> {
         let mut lox = Lox::new();
         let source = read_to_string(path)?;
-        lox.debug_run(&source)
+        lox.run(&source)
     }
 
     #[test]
@@ -129,5 +114,10 @@ mod tests {
     #[test]
     fn test_closure() {
         assert!(run_case("./examples/closure.lox").is_ok())
+    }
+
+    #[test]
+    fn test_inner_outer() {
+        assert!(run_case("./examples/inner_outer.lox").is_ok())
     }
 }

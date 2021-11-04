@@ -37,7 +37,7 @@ impl expr::Visitor<String> for AstPrinter {
         self.parenthesize("group".to_string(), vec![expr])
     }
 
-    fn visit_literal_expr(&self, value: &LiteralValue) -> String {
+    fn visit_literal_expr(&mut self, value: &LiteralValue) -> String {
         value.to_string()
     }
 
@@ -45,7 +45,7 @@ impl expr::Visitor<String> for AstPrinter {
         self.parenthesize(operator.lexeme.clone(), vec![right])
     }
 
-    fn visit_variable_expr(&self, name: &Token) -> String {
+    fn visit_variable_expr(&mut self, name: &Token) -> String {
         name.lexeme.clone()
     }
 

@@ -19,7 +19,7 @@ macro_rules! matche_types {
 
 #[derive(Debug)]
 pub enum ParseError {
-    UnexpectedToken { message: String, token: Token },
+    UnexpectedToken { token: Token, message: String },
     InvalidAssignment { token: Token, message: String },
 }
 

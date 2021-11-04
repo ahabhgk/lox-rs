@@ -3,7 +3,7 @@ use std::{cell::RefCell, fmt, rc::Rc};
 use crate::{
     ast::Stmt,
     environment::Environment,
-    interpreter::{Interpreter, RuntimeError},
+    interpreter::{Interpreter, InterpretError},
     token::Token,
 };
 
@@ -62,7 +62,7 @@ impl Function {
         &self,
         interpreter: &mut Interpreter,
         arguments: &Vec<Object>,
-    ) -> Result<Object, RuntimeError> {
+    ) -> Result<Object, InterpretError> {
         match self {
             Function::Native { body, .. } => Ok(body(arguments)),
             Function::User {
@@ -79,7 +79,7 @@ impl Function {
                         .define(param.lexeme.clone(), argument.clone());
                 }
                 match interpreter.execute_block(body, environment) {
-                    Err(RuntimeError::Return { value }) => Ok(value),
+                    Err(InterpretError::Return { value }) => Ok(value),
                     Err(other) => Err(other),
                     Ok(_) => Ok(Object::Nil),
                 }

@@ -100,7 +100,7 @@ pub mod expr {
             right: &Expr,
         ) -> R;
         fn visit_grouping_expr(&mut self, expression: &Expr) -> R;
-        fn visit_literal_expr(&self, value: &LiteralValue) -> R;
+        fn visit_literal_expr(&mut self, value: &LiteralValue) -> R;
         fn visit_logical_expr(
             &mut self,
             left: &Expr,
@@ -108,7 +108,7 @@ pub mod expr {
             right: &Expr,
         ) -> R;
         fn visit_unary_expr(&mut self, operator: &Token, right: &Expr) -> R;
-        fn visit_variable_expr(&self, name: &Token) -> R;
+        fn visit_variable_expr(&mut self, name: &Token) -> R;
         fn visit_assign_expr(&mut self, name: &Token, value: &Expr) -> R;
         fn visit_call_expr(
             &mut self,
